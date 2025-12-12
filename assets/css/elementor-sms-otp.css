@@ -1,0 +1,97 @@
+.elementor-otp-btn {
+    background-color: #61ce70 !important;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.elementor-otp-btn:hover {
+    background-color: #4fb85e !important;
+}
+
+.elementor-otp-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.elementor-otp-container {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.elementor-otp-input {
+    width: 100%;
+    padding: 12px;
+    font-size: 18px;
+    text-align: center;
+    letter-spacing: 5px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    transition: border-color 0.3s ease;
+}
+
+.elementor-otp-input:focus {
+    outline: none;
+    border-color: #61ce70;
+}
+
+.elementor-otp-verify {
+    background-color: #007cba !important;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.elementor-otp-verify:hover {
+    background-color: #005a87 !important;
+}
+
+.elementor-otp-verify:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.elementor-otp-message {
+    font-size: 14px;
+	padding:5px;
+    text-align: center;
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.elementor-otp-message.success {
+    color: #155724;
+    
+}
+
+.elementor-otp-message.error {
+    color: #721c24;
+   
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .elementor-otp-input {
+        font-size: 16px;
+        letter-spacing: 3px;
+    }
+}
