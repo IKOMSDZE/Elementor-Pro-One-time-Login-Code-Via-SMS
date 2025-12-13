@@ -1,0 +1,118 @@
+.elementor-otp-btn {
+    background-color: #61ce70 !important;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+.elementor-otp-btn:hover {
+    background-color: #4fb85e !important;
+}
+
+.elementor-otp-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.elementor-otp-container {
+    animation: slideDown 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.elementor-otp-input {
+    flex: 1;
+    min-width: 150px;
+    max-width: 250px;
+    padding: 12px;
+    font-size: 18px;
+    text-align: center;
+    letter-spacing: 5px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    transition: border-color 0.3s ease;
+}
+
+.elementor-otp-input:focus {
+    outline: none;
+    border-color: #61ce70;
+}
+
+.elementor-otp-verify {
+    background-color: #007cba !important;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.elementor-otp-verify:hover {
+    background-color: #005a87 !important;
+}
+
+.elementor-otp-verify:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.elementor-otp-message {
+    font-size: 14px;
+    padding: 5px;
+    text-align: center;
+    display: none;
+    animation: fadeIn 0.3s ease;
+    width: 100%;
+    margin-top: 5px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.elementor-otp-message.success {
+    color: #155724;
+}
+
+.elementor-otp-message.error {
+    color: #721c24;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .elementor-otp-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .elementor-otp-input {
+        max-width: 100%;
+        font-size: 16px;
+        letter-spacing: 3px;
+    }
+    
+    .elementor-otp-verify {
+        width: 100%;
+    }
+}
