@@ -9,129 +9,133 @@ if (!defined('ABSPATH')) {
 
 class Elementor_SMS_OTP_Logs_Page {
     
-    private $db;
+    private $logger;
     
-    public function __construct($db) {
-        $this->db = $db;
+    public function __construct($logger) {
+        $this->logger = $logger;
     }
     
     public function render() {
-        // Pagination
-        $per_page = 20;
-        $page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
-        
-        // Filters
-        $status_filter = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : '';
-        $date_filter = isset($_GET['date']) ? sanitize_text_field($_GET['date']) : '';
-        
-        $args = [
-            'per_page' => $per_page,
-            'page' => $page,
-            'status' => $status_filter,
-            'date' => $date_filter
-        ];
-        
         // Get logs
-        $total = $this->db->get_total_logs($args);
-        $logs = $this->db->get_logs($args);
-        
-        $total_pages = ceil($total / $per_page);
+        $per_page = 100;
+        $logs = $this->logger->get_recent_logs($per_page);
+        $log_file_path = $this->logger->get_log_file_path();
+        $log_size = $this->logger->get_log_file_size();
         ?>
-        <div class="wrap">
+        <div class="wrap" style="max-width: none;">
             <h1><?php echo esc_html__('SMS Logs', 'elementor-sms-otp'); ?></h1>
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0;">
-                <form method="get" action="" style="display: flex; gap: 10px;">
-                    <input type="hidden" name="page" value="elementor-sms-otp-logs" />
-                    
-                    <select name="status" style="padding: 5px;">
-                        <option value=""><?php echo esc_html__('All Statuses', 'elementor-sms-otp'); ?></option>
-                        <option value="sent" <?php selected($status_filter, 'sent'); ?>><?php echo esc_html__('Sent', 'elementor-sms-otp'); ?></option>
-                        <option value="verified" <?php selected($status_filter, 'verified'); ?>><?php echo esc_html__('Verified', 'elementor-sms-otp'); ?></option>
-                        <option value="failed" <?php selected($status_filter, 'failed'); ?>><?php echo esc_html__('Failed', 'elementor-sms-otp'); ?></option>
-                        <option value="expired" <?php selected($status_filter, 'expired'); ?>><?php echo esc_html__('Expired', 'elementor-sms-otp'); ?></option>
-                    </select>
-                    
-                    <input type="date" name="date" value="<?php echo esc_attr($date_filter); ?>" style="padding: 5px;" />
-                    
-                    <button type="submit" class="button"><?php echo esc_html__('Filter', 'elementor-sms-otp'); ?></button>
-                    <a href="<?php echo admin_url('admin.php?page=elementor-sms-otp-logs'); ?>" class="button"><?php echo esc_html__('Reset', 'elementor-sms-otp'); ?></a>
-                </form>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin: 20px 0; gap: 20px;">
+                <div style="flex: 1;">
+                    <div style="background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 4px;">
+                        <p style="margin: 0 0 8px 0;">
+                            <strong><?php echo esc_html__('Log File:', 'elementor-sms-otp'); ?></strong> 
+                            <code style="background: #f5f5f5; padding: 3px 8px; border-radius: 3px;"><?php echo esc_html($log_file_path); ?></code>
+                        </p>
+                        <p style="margin: 0 0 8px 0;">
+                            <strong><?php echo esc_html__('File Size:', 'elementor-sms-otp'); ?></strong> 
+                            <span style="color: #2271b1; font-weight: 600;"><?php echo esc_html(size_format($log_size, 2)); ?></span>
+                        </p>
+                        <p style="margin: 0; color: #666;">
+                            <?php echo esc_html__('Showing last', 'elementor-sms-otp'); ?> <strong><?php echo count($logs); ?></strong> <?php echo esc_html__('entries', 'elementor-sms-otp'); ?>
+                        </p>
+                    </div>
+                </div>
                 
-                <div style="display: flex; gap: 10px;">
-                    <button id="export-logs" class="button button-secondary"><?php echo esc_html__('Export CSV', 'elementor-sms-otp'); ?></button>
-                    <button id="clear-logs" class="button button-secondary" onclick="return confirm('<?php echo esc_js(__('Are you sure you want to clear all logs?', 'elementor-sms-otp')); ?>');"><?php echo esc_html__('Clear Logs', 'elementor-sms-otp'); ?></button>
+                <div style="display: flex; gap: 10px; flex-shrink: 0;">
+                    <button id="export-logs" class="button button-secondary">
+                        <span class="dashicons dashicons-download" style="margin-top: 3px;"></span>
+                        <?php echo esc_html__('Export Logs', 'elementor-sms-otp'); ?>
+                    </button>
+                    <button id="clear-logs" class="button button-secondary" onclick="return confirm('<?php echo esc_js(__('Are you sure you want to clear all logs? This action cannot be undone.', 'elementor-sms-otp')); ?>');">
+                        <span class="dashicons dashicons-trash" style="margin-top: 3px;"></span>
+                        <?php echo esc_html__('Clear Logs', 'elementor-sms-otp'); ?>
+                    </button>
+                    <button id="refresh-logs" class="button button-primary">
+                        <span class="dashicons dashicons-update" style="margin-top: 3px;"></span>
+                        <?php echo esc_html__('Refresh', 'elementor-sms-otp'); ?>
+                    </button>
                 </div>
             </div>
             
-            <table class="wp-list-table widefat fixed striped">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;"><?php echo esc_html__('ID', 'elementor-sms-otp'); ?></th>
-                        <th><?php echo esc_html__('User', 'elementor-sms-otp'); ?></th>
-                        <th><?php echo esc_html__('Phone', 'elementor-sms-otp'); ?></th>
-                        <th style="width: 100px;"><?php echo esc_html__('Code', 'elementor-sms-otp'); ?></th>
-                        <th style="width: 100px;"><?php echo esc_html__('Status', 'elementor-sms-otp'); ?></th>
-                        <th><?php echo esc_html__('IP Address', 'elementor-sms-otp'); ?></th>
-                        <th><?php echo esc_html__('Date', 'elementor-sms-otp'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
+            <!-- Legend -->
+            <div style="margin-bottom: 15px; padding: 12px 20px; background: #f0f6fc; border-left: 4px solid #2271b1; border-radius: 3px;">
+                <strong style="margin-right: 15px;"><?php echo esc_html__('Status Legend:', 'elementor-sms-otp'); ?></strong>
+                <span style="margin-right: 15px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; background: #f0b849; border-radius: 50%; margin-right: 5px;"></span>
+                    <strong>SENT</strong>
+                </span>
+                <span style="margin-right: 15px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; background: #00a32a; border-radius: 50%; margin-right: 5px;"></span>
+                    <strong>VERIFIED</strong>
+                </span>
+                <span style="margin-right: 15px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; background: #d63638; border-radius: 50%; margin-right: 5px;"></span>
+                    <strong>FAILED</strong>
+                </span>
+                <span>
+                    <span style="display: inline-block; width: 10px; height: 10px; background: #999; border-radius: 50%; margin-right: 5px;"></span>
+                    <strong>EXPIRED</strong>
+                </span>
+            </div>
+            
+            <!-- Log Viewer -->
+            <div class="card" style="padding: 0; margin: 0;">
+                <div style="overflow-x: auto; background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.5; padding: 20px;">
                     <?php if (empty($logs)): ?>
-                        <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px;">
-                                <?php echo esc_html__('No logs found', 'elementor-sms-otp'); ?>
-                            </td>
-                        </tr>
+                        <div style="text-align: center; padding: 60px 20px; color: #888;">
+                            <span class="dashicons dashicons-info" style="font-size: 48px; width: 48px; height: 48px; margin-bottom: 15px;"></span>
+                            <p style="font-size: 16px; margin: 0;"><?php echo esc_html__('No logs found', 'elementor-sms-otp'); ?></p>
+                            <p style="font-size: 13px; margin: 10px 0 0 0; opacity: 0.7;"><?php echo esc_html__('Logs will appear here when SMS OTP codes are sent', 'elementor-sms-otp'); ?></p>
+                        </div>
                     <?php else: ?>
                         <?php foreach ($logs as $log): ?>
-                            <tr>
-                                <td><?php echo esc_html($log->id); ?></td>
-                                <td>
-                                    <strong><?php echo esc_html($log->username); ?></strong><br>
-                                    <small style="color: #666;">ID: <?php echo esc_html($log->user_id); ?></small>
-                                </td>
-                                <td><?php echo esc_html($log->phone); ?></td>
-                                <td><code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;"><?php echo esc_html($log->otp_code); ?></code></td>
-                                <td>
-                                    <?php
-                                    $status_colors = [
-                                        'sent' => '#f0b849',
-                                        'verified' => '#00a32a',
-                                        'failed' => '#d63638',
-                                        'expired' => '#999'
-                                    ];
-                                    $color = $status_colors[$log->status] ?? '#666';
-                                    ?>
-                                    <span style="color: <?php echo esc_attr($color); ?>; font-weight: bold;">
-                                        ● <?php echo esc_html(ucfirst($log->status)); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo esc_html($log->ip_address); ?></td>
-                                <td><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($log->created_at))); ?></td>
-                            </tr>
+                            <?php
+                            // Determine status color
+                            $border_color = '#666';
+                            $bg_color = '#252525';
+                            
+                            if (strpos($log, 'VERIFIED') !== false) {
+                                $border_color = '#00a32a';
+                                $bg_color = '#1a2e1a';
+                            } elseif (strpos($log, 'SENT') !== false) {
+                                $border_color = '#f0b849';
+                                $bg_color = '#2e2816';
+                            } elseif (strpos($log, 'FAILED') !== false) {
+                                $border_color = '#d63638';
+                                $bg_color = '#2e1a1a';
+                            } elseif (strpos($log, 'EXPIRED') !== false) {
+                                $border_color = '#999';
+                                $bg_color = '#222';
+                            }
+                            ?>
+                            <div style="margin-bottom: 8px; padding: 10px 15px; background: <?php echo esc_attr($bg_color); ?>; border-left: 4px solid <?php echo esc_attr($border_color); ?>; border-radius: 3px; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap;">
+                                <?php echo esc_html($log); ?>
+                            </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
-                </tbody>
-            </table>
-            
-            <?php if ($total_pages > 1): ?>
-                <div class="tablenav bottom">
-                    <div class="tablenav-pages">
-                        <?php
-                        echo paginate_links([
-                            'base' => add_query_arg('paged', '%#%'),
-                            'format' => '',
-                            'prev_text' => __('&laquo;'),
-                            'next_text' => __('&raquo;'),
-                            'total' => $total_pages,
-                            'current' => $page
-                        ]);
-                        ?>
-                    </div>
                 </div>
-            <?php endif; ?>
+            </div>
+            
+            <!-- Log Format Info -->
+            <div style="margin-top: 20px; padding: 15px 20px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
+                <h3 style="margin-top: 0; margin-bottom: 10px; color: #2271b1; font-size: 14px;">
+                    <?php echo esc_html__('Log Entry Format', 'elementor-sms-otp'); ?>
+                </h3>
+                <p style="margin: 0; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; color: #666; background: #f5f5f5; padding: 10px; border-radius: 3px;">
+                    [Timestamp] User: username (ID: user_id) | Phone: phone | OTP: code | Status: STATUS | IP: ip_address | Agent: user_agent
+                </p>
+            </div>
         </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            $('#refresh-logs').on('click', function(e) {
+                e.preventDefault();
+                location.reload();
+            });
+        });
+        </script>
         <?php
     }
 }

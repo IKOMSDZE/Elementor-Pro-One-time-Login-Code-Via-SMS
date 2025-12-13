@@ -10,11 +10,11 @@ if (!defined('ABSPATH')) {
 class Elementor_SMS_OTP_Settings_Page {
 
     private $sms_sender;
-    private $db;
+    private $logger;
 
-    public function __construct($sms_sender = null, $db = null) {
+    public function __construct($sms_sender = null, $logger = null) {
         $this->sms_sender = $sms_sender ? $sms_sender : new Elementor_SMS_OTP_SMS_Sender();
-        $this->db         = $db ? $db : new Elementor_SMS_OTP_Database();
+        $this->logger     = $logger ? $logger : new Elementor_SMS_OTP_Logger();
     }
 
     public function render() {
@@ -33,10 +33,6 @@ class Elementor_SMS_OTP_Settings_Page {
                 $test_result = '<div class="notice notice-error"><p>' . __('Failed to send test SMS. Please check your API credentials.', 'elementor-sms-otp') . '</p></div>';
             }
         }
-
-        // Get statistics
-        $db    = new Elementor_SMS_OTP_Database();
-        $stats = $db->get_statistics();
         ?>
         <div class="wrap">
             <h1><?php echo esc_html__('SMS OTP Login Settings', 'elementor-sms-otp'); ?></h1>
@@ -123,7 +119,7 @@ class Elementor_SMS_OTP_Settings_Page {
                                         <label for="elementor_sms_otp_rate_limit"><?php echo esc_html__('Rate Limit', 'elementor-sms-otp'); ?></label>
                                     </th>
                                     <td>
-                                        <input type="number" id="elementor_sms_otp_rate_limit" name="elementor_sms_otp_rate_limit" value="<?php echo esc_attr(get_option('elementor_sms_otp_rate_limit', 3)); ?>" min="1" max="10" style="width: 80px;" /> <?php echo esc_html__('requests per hour', 'elementor-sms-otp'); ?>
+                                        <input type="number" id="elementor_sms_otp_rate_limit" name="elementor_sms_otp_rate_limit" value="<?php echo esc_attr(get_option('elementor_sms_otp_rate_limit', 3)); ?>" min="1" max="99" style="width: 80px;" /> <?php echo esc_html__('requests per hour', 'elementor-sms-otp'); ?>
                                         <p class="description"><?php echo esc_html__('Maximum OTP requests per user per hour', 'elementor-sms-otp'); ?></p>
                                     </td>
                                 </tr>
@@ -330,33 +326,10 @@ class Elementor_SMS_OTP_Settings_Page {
                     </div>
                 </div>
 
-                <!-- Sidebar with Stats and Info -->
+                <!-- Sidebar -->
                 <div>
-                    <!-- Statistics -->
-                    <div class="card" style="padding: 20px;">
-                        <h2 style="margin-top: 0;"><?php echo esc_html__('Statistics', 'elementor-sms-otp'); ?></h2>
-                        <div style="display: grid; gap: 15px;">
-                            <div class="stat-box">
-                                <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #2271b1;"><?php echo esc_html($stats['total_sent']); ?></div>
-                                <div class="stat-label" style="color: #666; font-size: 14px;"><?php echo esc_html__('Total SMS Sent', 'elementor-sms-otp'); ?></div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #00a32a;"><?php echo esc_html($stats['successful_logins']); ?></div>
-                                <div class="stat-label" style="color: #666; font-size: 14px;"><?php echo esc_html__('Successful Logins', 'elementor-sms-otp'); ?></div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #d63638;"><?php echo esc_html($stats['failed_attempts']); ?></div>
-                                <div class="stat-label" style="color: #666; font-size: 14px;"><?php echo esc_html__('Failed Attempts', 'elementor-sms-otp'); ?></div>
-                            </div>
-                            <div class="stat-box">
-                                <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #f0b849;"><?php echo esc_html($stats['users_with_phone']); ?></div>
-                                <div class="stat-label" style="color: #666; font-size: 14px;"><?php echo esc_html__('Users with Phone', 'elementor-sms-otp'); ?></div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Status -->
-                    <div class="card" style="padding: 20px; margin-top: 20px;">
+                    <div class="card" style="padding: 20px;">
                         <h2 style="margin-top: 0;"><?php echo esc_html__('Status', 'elementor-sms-otp'); ?></h2>
                         <table class="widefat striped">
                             <tbody>
@@ -388,6 +361,15 @@ class Elementor_SMS_OTP_Settings_Page {
                                         <?php else: ?>
                                             <span style="color: #f0b849;">⚠ <?php echo esc_html__('Not Detected', 'elementor-sms-otp'); ?></span>
                                         <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong><?php echo esc_html__('Log File Size', 'elementor-sms-otp'); ?></strong></td>
+                                    <td>
+                                        <?php 
+                                        $log_size = $this->logger->get_log_file_size();
+                                        echo esc_html(size_format($log_size, 2));
+                                        ?>
                                     </td>
                                 </tr>
                             </tbody>

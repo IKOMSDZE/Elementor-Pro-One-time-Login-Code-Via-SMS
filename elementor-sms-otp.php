@@ -3,7 +3,7 @@
  * Plugin Name: Elementor SMS OTP Login
  * Plugin URI: https://iko.ge
  * Description: Adds one-time password login via SMS (Smsoffice.ge) to Elementor Pro login forms for Georgian users
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author: iko
  * Author URI: https://iko.ge
  * Text Domain: elementor-sms-otp
@@ -16,12 +16,12 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ELEMENTOR_SMS_OTP_VERSION', '1.0.3');
+define('ELEMENTOR_SMS_OTP_VERSION', '1.0.4');
 define('ELEMENTOR_SMS_OTP_PATH', plugin_dir_path(__FILE__));
 define('ELEMENTOR_SMS_OTP_URL', plugin_dir_url(__FILE__));
 
 // Includes
-require_once ELEMENTOR_SMS_OTP_PATH . 'includes/class-database.php';
+require_once ELEMENTOR_SMS_OTP_PATH . 'includes/class-logger.php';
 require_once ELEMENTOR_SMS_OTP_PATH . 'includes/class-sms-sender.php';
 require_once ELEMENTOR_SMS_OTP_PATH . 'includes/class-ajax-handler.php';
 require_once ELEMENTOR_SMS_OTP_PATH . 'admin/class-settings-page.php';
@@ -30,7 +30,7 @@ require_once ELEMENTOR_SMS_OTP_PATH . 'admin/class-logs-page.php';
 class Elementor_SMS_OTP_Login {
 
     private static $instance = null;
-    private $db;
+    private $logger;
     private $sms_sender;
     private $ajax_handler;
 
@@ -42,9 +42,9 @@ class Elementor_SMS_OTP_Login {
     }
 
     private function __construct() {
-        $this->db         = new Elementor_SMS_OTP_Database();
-        $this->sms_sender = new Elementor_SMS_OTP_SMS_Sender();
-        $this->ajax_handler = new Elementor_SMS_OTP_Ajax_Handler($this->db, $this->sms_sender);
+        $this->logger       = new Elementor_SMS_OTP_Logger();
+        $this->sms_sender   = new Elementor_SMS_OTP_SMS_Sender();
+        $this->ajax_handler = new Elementor_SMS_OTP_Ajax_Handler($this->logger, $this->sms_sender);
 
         add_action('init',               [$this, 'init']);
         add_action('admin_menu',         [$this, 'add_admin_menu']);
@@ -60,8 +60,7 @@ class Elementor_SMS_OTP_Login {
     }
 
     public function activate() {
-        $this->db->create_table();
-
+        // Set default options
         if (!get_option('elementor_sms_otp_sender')) {
             update_option('elementor_sms_otp_sender', 'SMSOFFICE');
         }
@@ -93,7 +92,7 @@ class Elementor_SMS_OTP_Login {
             __('SMS OTP', 'elementor-sms-otp'),
             'manage_options',
             'elementor-sms-otp',
-            [new Elementor_SMS_OTP_Settings_Page($this->sms_sender, $this->db), 'render'],
+            [new Elementor_SMS_OTP_Settings_Page($this->sms_sender, $this->logger), 'render'],
             'dashicons-smartphone',
             65
         );
@@ -104,7 +103,7 @@ class Elementor_SMS_OTP_Login {
             __('SMS Logs', 'elementor-sms-otp'),
             'manage_options',
             'elementor-sms-otp-logs',
-            [new Elementor_SMS_OTP_Logs_Page($this->db), 'render']
+            [new Elementor_SMS_OTP_Logs_Page($this->logger), 'render']
         );
     }
 

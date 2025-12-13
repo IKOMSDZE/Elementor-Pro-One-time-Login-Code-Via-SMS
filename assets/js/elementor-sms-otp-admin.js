@@ -10,18 +10,12 @@ jQuery(document).ready(function($) {
         
         button.prop('disabled', true).text('Exporting...');
         
-        // Get current filter values
-        const status = $('select[name="status"]').val() || '';
-        const date = $('input[name="date"]').val() || '';
-        
         $.ajax({
             url: elementorSmsOtpAdmin.ajax_url,
             type: 'POST',
             data: {
                 action: 'export_sms_logs',
-                nonce: elementorSmsOtpAdmin.nonce,
-                status: status,
-                date: date
+                nonce: elementorSmsOtpAdmin.nonce
             },
             success: function(response) {
                 if (response.success) {
@@ -83,11 +77,4 @@ jQuery(document).ready(function($) {
             }
         });
     });
-    
-    // Auto-refresh statistics every 30 seconds on settings page
-    if ($('.stat-number').length > 0) {
-        setInterval(function() {
-            location.reload();
-        }, 30000);
-    }
 });

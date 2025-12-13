@@ -9,11 +9,11 @@ if (!defined('ABSPATH')) {
 
 class Elementor_SMS_OTP_Ajax_Handler {
 
-    private $db;
+    private $logger;
     private $sms_sender;
 
-    public function __construct($db, $sms_sender) {
-        $this->db        = $db;
+    public function __construct($logger, $sms_sender) {
+        $this->logger     = $logger;
         $this->sms_sender = $sms_sender;
 
         // Frontend AJAX handlers
@@ -45,7 +45,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
 
         if (!$user) {
             // Log failed attempt
-            $this->db->log_sms(0, $username, '', '', 'failed');
+            $this->logger->log_sms(0, $username, '', '', 'failed');
             wp_send_json_error(['message' => __('User not found', 'elementor-sms-otp')]);
         }
 
@@ -65,7 +65,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
         $phone = get_user_meta($user->ID, 'billing_phone', true);
 
         if (empty($phone)) {
-            $this->db->log_sms($user->ID, $user->user_login, '', '', 'failed');
+            $this->logger->log_sms($user->ID, $user->user_login, '', '', 'failed');
             wp_send_json_error(['message' => __('Phone number not found for this user', 'elementor-sms-otp')]);
         }
 
@@ -73,7 +73,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
         $phone = $this->sms_sender->format_phone($phone);
 
         if (!$this->sms_sender->validate_phone($phone)) {
-            $this->db->log_sms($user->ID, $user->user_login, $phone, '', 'failed');
+            $this->logger->log_sms($user->ID, $user->user_login, $phone, '', 'failed');
             wp_send_json_error(['message' => __('Invalid Georgian phone number', 'elementor-sms-otp')]);
         }
 
@@ -111,7 +111,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
 
         if ($sms_sent) {
             // Log successful SMS send
-            $this->db->log_sms($user->ID, $user->user_login, $phone, $otp_code, 'sent');
+            $this->logger->log_sms($user->ID, $user->user_login, $phone, $otp_code, 'sent');
 
             wp_send_json_success([
                 'message' => __('OTP code sent successfully', 'elementor-sms-otp'),
@@ -119,7 +119,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
             ]);
         } else {
             // Log failed SMS send
-            $this->db->log_sms($user->ID, $user->user_login, $phone, $otp_code, 'failed');
+            $this->logger->log_sms($user->ID, $user->user_login, $phone, $otp_code, 'failed');
             wp_send_json_error(['message' => __('Failed to send SMS', 'elementor-sms-otp')]);
         }
     }
@@ -138,52 +138,23 @@ class Elementor_SMS_OTP_Ajax_Handler {
         }
 
         $stored_otp = get_transient('elementor_otp_' . $user_id);
-
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'elementor_sms_otp_logs';
+        $user = get_user_by('ID', $user_id);
 
         if ($stored_otp === false) {
-            // Mark as expired in logs
-            $wpdb->query($wpdb->prepare(
-                "UPDATE {$table_name}
-                 SET status = 'expired'
-                 WHERE user_id = %d AND status = 'sent'
-                 ORDER BY created_at DESC
-                 LIMIT 1",
-                $user_id
-            ));
-
+            $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'expired');
             wp_send_json_error(['message' => __('OTP code expired', 'elementor-sms-otp')]);
         }
 
         if ($stored_otp !== $otp_code) {
-            // Update to failed status
-            $wpdb->query($wpdb->prepare(
-                "UPDATE {$table_name}
-                 SET status = 'failed'
-                 WHERE user_id = %d AND status = 'sent'
-                 ORDER BY created_at DESC
-                 LIMIT 1",
-                $user_id
-            ));
-
+            $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'failed');
             wp_send_json_error(['message' => __('Invalid OTP code', 'elementor-sms-otp')]);
         }
 
         // OTP is valid, log the user in
         delete_transient('elementor_otp_' . $user_id);
 
-        // Update to verified status
-        $wpdb->query($wpdb->prepare(
-            "UPDATE {$table_name}
-             SET status = 'verified'
-             WHERE user_id = %d AND status = 'sent'
-             ORDER BY created_at DESC
-             LIMIT 1",
-            $user_id
-        ));
-
-        $user = get_user_by('ID', $user_id);
+        // Log successful verification
+        $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'verified');
 
         wp_set_current_user($user_id);
         wp_set_auth_cookie($user_id, true);
@@ -196,7 +167,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
     }
 
     /**
-     * Export logs as CSV
+     * Export logs
      */
     public function export_logs() {
         check_ajax_referer('elementor_sms_otp_admin_nonce', 'nonce');
@@ -205,46 +176,16 @@ class Elementor_SMS_OTP_Ajax_Handler {
             wp_send_json_error(['message' => __('Permission denied', 'elementor-sms-otp')]);
         }
 
-        $args = [
-            'status' => isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '',
-            'date'   => isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '',
-        ];
+        $file_url = $this->logger->export_logs();
 
-        $logs = $this->db->export_logs_csv($args);
-
-        if (empty($logs)) {
-            wp_send_json_error(['message' => __('No logs to export', 'elementor-sms-otp')]);
-        }
-
-        $upload_dir = wp_upload_dir();
-        $filename   = 'sms-otp-logs-' . date('Y-m-d-H-i-s') . '.csv';
-        $filepath   = trailingslashit($upload_dir['path']) . $filename;
-
-        $fp = fopen($filepath, 'w');
-
-        // Add headers
-        fputcsv($fp, ['ID', 'User ID', 'Username', 'Phone', 'OTP Code', 'Status', 'IP Address', 'Date']);
-
-        // Add data
-        foreach ($logs as $log) {
-            fputcsv($fp, [
-                $log['id'],
-                $log['user_id'],
-                $log['username'],
-                $log['phone'],
-                $log['otp_code'],
-                $log['status'],
-                $log['ip_address'],
-                $log['created_at'],
+        if ($file_url) {
+            wp_send_json_success([
+                'message'  => __('Export successful', 'elementor-sms-otp'),
+                'file_url' => $file_url,
             ]);
+        } else {
+            wp_send_json_error(['message' => __('Export failed. No logs found.', 'elementor-sms-otp')]);
         }
-
-        fclose($fp);
-
-        wp_send_json_success([
-            'message'  => __('Export successful', 'elementor-sms-otp'),
-            'file_url' => trailingslashit($upload_dir['url']) . $filename,
-        ]);
     }
 
     /**
@@ -257,7 +198,7 @@ class Elementor_SMS_OTP_Ajax_Handler {
             wp_send_json_error(['message' => __('Permission denied', 'elementor-sms-otp')]);
         }
 
-        $this->db->clear_logs();
+        $this->logger->clear_logs();
 
         wp_send_json_success(['message' => __('Logs cleared successfully', 'elementor-sms-otp')]);
     }
