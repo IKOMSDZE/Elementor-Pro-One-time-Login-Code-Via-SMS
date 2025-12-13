@@ -44,10 +44,15 @@ class Elementor_SMS_OTP_Ajax_Handler {
         }
 
         if (!$user) {
-            // Log failed attempt
-            $this->logger->log_sms(0, $username, '', '', 'failed');
-            wp_send_json_error(['message' => __('User not found', 'elementor-sms-otp')]);
-        }
+    		$this->logger->log_sms(0, $username, '', '', 'failed');
+    		wp_send_json_error(['message' => __('Invalid username or phone number not configured', 'elementor-sms-otp')]);
+		}
+
+		// Also combine with phone check
+		if (empty($phone)) {
+    		$this->logger->log_sms($user->ID, $user->user_login, '', '', 'failed');
+    		wp_send_json_error(['message' => __('Invalid username or phone number not configured', 'elementor-sms-otp')]);
+		}
 
         // Check rate limit
         $rate_limit    = (int) get_option('elementor_sms_otp_rate_limit', 3);
@@ -78,7 +83,8 @@ class Elementor_SMS_OTP_Ajax_Handler {
         }
 
         // Generate 6-digit OTP
-        $otp_code = sprintf('%06d', mt_rand(0, 999999));
+		$otp_code = sprintf('%06d', random_int(100000, 999999));
+
 
         // Store OTP with expiry
         $expiry_minutes = (int) get_option('elementor_sms_otp_code_expiry', 5);
@@ -128,32 +134,45 @@ class Elementor_SMS_OTP_Ajax_Handler {
      * Handle verifying OTP + logging user in
      */
     public function verify_otp() {
-        check_ajax_referer('elementor_sms_otp_nonce', 'nonce');
+    check_ajax_referer('elementor_sms_otp_nonce', 'nonce');
 
-        $user_id  = intval($_POST['user_id'] ?? 0);
-        $otp_code = sanitize_text_field($_POST['otp_code'] ?? '');
+    $user_id  = intval($_POST['user_id'] ?? 0);
+    $otp_code = sanitize_text_field($_POST['otp_code'] ?? '');
 
-        if (empty($user_id) || empty($otp_code)) {
-            wp_send_json_error(['message' => __('Invalid request', 'elementor-sms-otp')]);
-        }
+    if (empty($user_id) || empty($otp_code)) {
+        wp_send_json_error(['message' => __('Invalid request', 'elementor-sms-otp')]);
+    }
 
-        $stored_otp = get_transient('elementor_otp_' . $user_id);
-        $user = get_user_by('ID', $user_id);
+    // NEW: Check verification attempts
+    $attempts_key = 'elementor_otp_attempts_' . $user_id;
+    $attempts = get_transient($attempts_key);
+    
+    if ($attempts !== false && $attempts >= 5) {
+        wp_send_json_error(['message' => __('Too many verification attempts. Please request a new code.', 'elementor-sms-otp')]);
+    }
 
-        if ($stored_otp === false) {
-            $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'expired');
-            wp_send_json_error(['message' => __('OTP code expired', 'elementor-sms-otp')]);
-        }
+    $stored_otp = get_transient('elementor_otp_' . $user_id);
+    $user = get_user_by('ID', $user_id);
 
-        if ($stored_otp !== $otp_code) {
-            $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'failed');
-            wp_send_json_error(['message' => __('Invalid OTP code', 'elementor-sms-otp')]);
-        }
+    if ($stored_otp === false) {
+        $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'expired');
+        wp_send_json_error(['message' => __('OTP code expired', 'elementor-sms-otp')]);
+    }
 
-        // OTP is valid, log the user in
-        delete_transient('elementor_otp_' . $user_id);
+    if ($stored_otp !== $otp_code) {
+        // NEW: Increment attempts
+        set_transient($attempts_key, ($attempts === false ? 1 : $attempts + 1), 300); // 5 minutes
+        
+        $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'failed');
+        wp_send_json_error(['message' => __('Invalid OTP code', 'elementor-sms-otp')]);
+    }
 
-        // Log successful verification
+    	// OTP is valid, clear attempts counter
+    	delete_transient($attempts_key);
+    	delete_transient('elementor_otp_' . $user_id);
+    
+    
+		// Log successful verification
         $this->logger->log_sms($user_id, $user->user_login, '', $otp_code, 'verified');
 
         wp_set_current_user($user_id);

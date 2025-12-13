@@ -24,10 +24,10 @@ class Elementor_SMS_OTP_Settings_Page {
         $test_result = '';
         if (isset($_POST['test_sms_submit']) && check_admin_referer('elementor_sms_otp_test_sms')) {
             $test_phone = sanitize_text_field($_POST['test_phone']);
-            $test_code  = sprintf('%06d', mt_rand(0, 999999));
-
-            $sms_sender = new Elementor_SMS_OTP_SMS_Sender();
-            if ($sms_sender->send($test_phone, $test_code)) {
+            $test_code = sprintf('%06d', random_int(100000, 999999));
+			$template = get_option('elementor_sms_otp_sms_template', 'Your login code is {code}');
+			$message = str_replace('{code}', $test_code, $template);
+			if ($sms_sender->send($test_phone, $message)) {
                 $test_result = '<div class="notice notice-success"><p>' . __('Test SMS sent successfully!', 'elementor-sms-otp') . '</p></div>';
             } else {
                 $test_result = '<div class="notice notice-error"><p>' . __('Failed to send test SMS. Please check your API credentials.', 'elementor-sms-otp') . '</p></div>';
